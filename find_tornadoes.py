@@ -54,6 +54,11 @@ leadtime=5
 DateDelta = timedelta(days=leadtime)
 DateDelta1 = timedelta(days=1)
 
+#initialize informational variables for printouts
+procyear=0
+num_found=0
+num_missing=0
+
 #initialize lists to store csv data
 tornado_hist = []
 daily_station = []
@@ -72,9 +77,6 @@ high_date = []
 low_date = []
 prcp_date = []
 
-#debugging variables to understand how many requests are successful
-badcount = 0
-goodcount = 0
 
 #Iterates through the files in the directory TornadoHistory and adds records from the CSV's downloaded from NOAA's Storm Events Database
 #Adds each tornado's data to a list "tornado_hist"
@@ -105,26 +107,17 @@ for tornado_event in tornado_hist:
         if tornado_event[1].lower() == station[0].lower():
             end_date = datetime.strptime(tornado_event[3], "%m/%d/%Y") -DateDelta1
             start_date = end_date - DateDelta
-            #Commented code is WIP to query NOAA for weather stations based on Lat/Long
-            #if tornado_event[30] != '' and tornado_event[31] != '':
-            #    lat_range_low = float(tornado_event[30]) - 1
-            #    lat_range_high = float(tornado_event[30]) + 1
-            #    lon_range_low = float(tornado_event[31]) - 1
-            #    lon_range_high = float(tornado_event[31]) + 1
-            #r = requests.get('https://www.ncdc.noaa.gov/cdo-web/api/v2/data?datasetid=GHCND&limit=1000&startdate='+str(start_date.isoformat())+'&enddate='+str(end_date.isoformat())+'&boundingBox='+str(lat_range_low)+','+str(lon_range_low)+','+str(lat_range_high)+','+str(lon_range_high), headers={'token':parms.Token})
+
+            if end_date.year > procyear:
+                if procyear>0:
+                    print("Number of tornado events with matching weather data: " + str(num_found))
+                    print("Number of tornado events with missing weather data: " + str(num_missing))
+                    num_found =0
+                    num_missing =0
+                print("Processing year: " + str(end_date.year))
+                procyear = end_date.year
+                
             r = requests.get('https://www.ncdc.noaa.gov/cdo-web/api/v2/data?datasetid=GHCND&limit=1000&stationid='+station[1]+'&startdate='+str(start_date.isoformat())+'&enddate='+str(end_date.isoformat()), headers={'token':parms.Token})
-#            if len(r.content) > 0:
-#                goodcount +=1
-#                print(station[0])
-#            else:
-                #When compiling the list of weather stations, one limitation was finding a single weather station that covered the entire date range 1995-2020
-                #In this situation I listed multiple weather stations to better cover the time frame.
-                #If there is no result in the first request, this request is sent with a secondary station ID
-#                r = requests.get('https://www.ncdc.noaa.gov/cdo-web/api/v2/data?datasetid=GHCND&limit=1000&stationid='+station[2]+'&startdate='+str(start_date.year)+'-'+str(start_date.month)+'-'+str(start_date.day)+'&enddate='+str(end_date.year)+'-'+str(end_date.month)+'-'+str(end_date.day), headers={'token':parms.Token})
-#                if len(r.content) > 0:
-#                    goodcount += 1
-#                else:
-#                    print("Could not find weather data for: ", tornado_event[0], tornado_event[1], tornado_event[3])
             leadup = json.loads(r.text)
 
             if(len(leadup) > 0):
@@ -140,10 +133,14 @@ for tornado_event in tornado_hist:
                 high_date +=[item['date'] for item in high_temp]
                 low_date +=[item['date'] for item in low_temp]
                 prcp_date +=[item['date'] for item in prcp]
+
+                num_found +=1
             else:
-                print("Could not find weather data for: ", tornado_event[0], tornado_event[1], tornado_event[3])
+                #print("Could not find weather data for: ", tornado_event[0], tornado_event[1], tornado_event[3])
+                num_missing+=1
+
+print("Number of tornado events with matching weather data: " + str(num_found))
+print("Number of tornado events with missing weather data: " + str(num_missing))
                 
-            
-print('good', goodcount, 'bad', badcount)
 
 
