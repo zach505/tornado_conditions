@@ -20,11 +20,6 @@
 #needed to make web requests
 import requests
 
-#needed to open local files
-import os
-
-#needed to read historical Tornado Data
-import csv
 
 #needed to store the data we get as a dataframe
 import pandas as pd
@@ -44,10 +39,10 @@ from datetime import datetime, timedelta
 #local parameter file to keep sensitive and user specific information
 import parms
 
-#variables for local directories
-#variables for the number of days before a storm to consider
-historydir = 'TornadoHistory'
-dailystationdir= 'DailyWeatherStation'
+#locally defined functions
+import tornado_func as func
+
+
 
 #variables for the number of days before a storm to consider.
 leadtime=5
@@ -59,47 +54,14 @@ procyear=0
 num_found=0
 num_missing=0
 
-#initialize lists to store csv data
-tornado_hist = []
-daily_station = []
-
-#initialize lists that will be used to identify datatype from our NOAA requests
-high_temp = []
-low_temp = []
-prcp = []
-
-#initialize lists that will be used to store leadup information for all events
-leadup_high = []
-leadup_low = []
-leadup_prcp = []
-
-high_date = []
-low_date = []
-prcp_date = []
 
 
-#Iterates through the files in the directory TornadoHistory and adds records from the CSV's downloaded from NOAA's Storm Events Database
-#Adds each tornado's data to a list "tornado_hist"
-for tornadohistfiles in os.listdir(historydir):
-    i = 0
-    with open(os.path.join(historydir,tornadohistfiles)) as f:
-        reader = csv.reader(f)
-        for row in reader:
-            if i > 0:
-                tornado_hist.append(row)
-            i+=1
-        f.close()
+#read tornado history into a list
+tornado_hist = func.read_hist()
 
-#Adds county weather station info to a list "daily_station"
-#This is a place for big improvements. Daily weather stations were chosen manually. A further enhancement would be to use LAT/LONG to find the closest Weather Station.
-#UPDATE: I see bounded box as a great path forward for requesting based on the lat/long of the tornado.
-#       Some tornado events do not have lat/long, but being able to compare SW of the event to NE seems useful
-for stationfiles in os.listdir(dailystationdir):
-    with open(os.path.join(dailystationdir,stationfiles)) as f:
-        reader = csv.reader(f)
-        for row in reader:
-                daily_station.append(row)
-        f.close()
+#read weater station info into a list
+daily_station = func.read_station()
+
 
 #Nested loops to iterate through each tornado event, find the weather stations associated with that county and request NOAA for daily summaries from the lead time to the event.        
 for tornado_event in tornado_hist:
@@ -108,10 +70,13 @@ for tornado_event in tornado_hist:
             end_date = datetime.strptime(tornado_event[3], "%m/%d/%Y") -DateDelta1
             start_date = end_date - DateDelta
 
+            #This if statement checks to see if a new year is being processed and prints some information to the console
+            #This is useful for development, but ultimately would be better as a log
             if end_date.year > procyear:
                 if procyear>0:
                     print("Number of tornado events with matching weather data: " + str(num_found))
                     print("Number of tornado events with missing weather data: " + str(num_missing))
+                    print(len(func.leadup_high))
                     num_found =0
                     num_missing =0
                 print("Processing year: " + str(end_date.year))
@@ -122,19 +87,7 @@ for tornado_event in tornado_hist:
 
             #if checks that the NOAA request returned data
             if(len(leadup) > 0):
-                #identifies all highs, lows and prcp data from the request
-                high_temp = [item for item in leadup['results'] if item['datatype'] == 'TMAX']
-                low_temp = [item for item in leadup['results'] if item['datatype'] == 'TMIN']
-                prcp = [item for item in leadup['results'] if item['datatype'] == 'PRCP']
-
-                #appends the high low and prcp data from the request to the lists shared by all events
-                leadup_high +=[item['value'] for item in high_temp]
-                leadup_low +=[item['value'] for item in low_temp]
-                leadup_prcp += [item['value'] for item in prcp]
-                high_date +=[item['date'] for item in high_temp]
-                low_date +=[item['date'] for item in low_temp]
-                prcp_date +=[item['date'] for item in prcp]
-
+                func.get_leadup(leadup)
                 num_found +=1
                 
             #else for scenarios where NOAA request did not return data. tries the request again with a backup weather station id
@@ -144,25 +97,17 @@ for tornado_event in tornado_hist:
                 #here's a repeat of logic from above. it might be time to make a function
                 #if checks that NOAA request returned data
                 if(len(leadup) > 0):
-                    #identifies all highs, lows and prcp data from the request
-                    high_temp = [item for item in leadup['results'] if item['datatype'] == 'TMAX']
-                    low_temp = [item for item in leadup['results'] if item['datatype'] == 'TMIN']
-                    prcp = [item for item in leadup['results'] if item['datatype'] == 'PRCP']
-
-                    #appends the high low and prcp data from the request to the lists shared by all events
-                    leadup_high +=[item['value'] for item in high_temp]
-                    leadup_low +=[item['value'] for item in low_temp]
-                    leadup_prcp += [item['value'] for item in prcp]
-                    high_date +=[item['date'] for item in high_temp]
-                    low_date +=[item['date'] for item in low_temp]
-                    prcp_date +=[item['date'] for item in prcp]
+                    func.get_leadup(leadup)
                     num_found +=1
                 else:    
                     print("Could not find weather data for: ", tornado_event[0], tornado_event[1], tornado_event[3])
                     num_missing+=1
 
+#prints to the console to finalize yearly information being printed to the console
+#like the other prints, useful for development, but would be better as a log
 print("Number of tornado events with matching weather data: " + str(num_found))
 print("Number of tornado events with missing weather data: " + str(num_missing))
-                
 
+
+                
 
