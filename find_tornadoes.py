@@ -120,6 +120,7 @@ for tornado_event in tornado_hist:
             r = requests.get('https://www.ncdc.noaa.gov/cdo-web/api/v2/data?datasetid=GHCND&limit=1000&stationid='+station[1]+'&startdate='+str(start_date.isoformat())+'&enddate='+str(end_date.isoformat()), headers={'token':parms.Token})
             leadup = json.loads(r.text)
 
+            #if checks that the NOAA request returned data
             if(len(leadup) > 0):
                 #identifies all highs, lows and prcp data from the request
                 high_temp = [item for item in leadup['results'] if item['datatype'] == 'TMAX']
@@ -135,9 +136,30 @@ for tornado_event in tornado_hist:
                 prcp_date +=[item['date'] for item in prcp]
 
                 num_found +=1
+                
+            #else for scenarios where NOAA request did not return data. tries the request again with a backup weather station id
             else:
-                #print("Could not find weather data for: ", tornado_event[0], tornado_event[1], tornado_event[3])
-                num_missing+=1
+                r = requests.get('https://www.ncdc.noaa.gov/cdo-web/api/v2/data?datasetid=GHCND&limit=1000&stationid='+station[2]+'&startdate='+str(start_date.isoformat())+'&enddate='+str(end_date.isoformat()), headers={'token':parms.Token})
+                leadup = json.loads(r.text)
+                #here's a repeat of logic from above. it might be time to make a function
+                #if checks that NOAA request returned data
+                if(len(leadup) > 0):
+                    #identifies all highs, lows and prcp data from the request
+                    high_temp = [item for item in leadup['results'] if item['datatype'] == 'TMAX']
+                    low_temp = [item for item in leadup['results'] if item['datatype'] == 'TMIN']
+                    prcp = [item for item in leadup['results'] if item['datatype'] == 'PRCP']
+
+                    #appends the high low and prcp data from the request to the lists shared by all events
+                    leadup_high +=[item['value'] for item in high_temp]
+                    leadup_low +=[item['value'] for item in low_temp]
+                    leadup_prcp += [item['value'] for item in prcp]
+                    high_date +=[item['date'] for item in high_temp]
+                    low_date +=[item['date'] for item in low_temp]
+                    prcp_date +=[item['date'] for item in prcp]
+                    num_found +=1
+                else:    
+                    print("Could not find weather data for: ", tornado_event[0], tornado_event[1], tornado_event[3])
+                    num_missing+=1
 
 print("Number of tornado events with matching weather data: " + str(num_found))
 print("Number of tornado events with missing weather data: " + str(num_missing))
