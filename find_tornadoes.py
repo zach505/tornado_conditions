@@ -69,14 +69,12 @@ for tornado_event in tornado_hist:
         if tornado_event[1].lower() == station[0].lower():
             end_date = datetime.strptime(tornado_event[3], "%m/%d/%Y") -DateDelta1
             start_date = end_date - DateDelta
-
             #This if statement checks to see if a new year is being processed and prints some information to the console
             #This is useful for development, but ultimately would be better as a log
             if end_date.year > procyear:
                 if procyear>0:
                     print("Number of tornado events with matching weather data: " + str(num_found))
                     print("Number of tornado events with missing weather data: " + str(num_missing))
-                    print(len(func.leadup_high))
                     num_found =0
                     num_missing =0
                 print("Processing year: " + str(end_date.year))
@@ -87,8 +85,10 @@ for tornado_event in tornado_hist:
 
             #if checks that the NOAA request returned data
             if(len(leadup) > 0):
-                func.get_leadup(leadup)
+                func.get_leadup(leadup, station[1])
                 num_found +=1
+                func.get_normals(station[1], start_date, end_date)
+
                 
             #else for scenarios where NOAA request did not return data. tries the request again with a backup weather station id
             else:
@@ -97,11 +97,13 @@ for tornado_event in tornado_hist:
                 #here's a repeat of logic from above. it might be time to make a function
                 #if checks that NOAA request returned data
                 if(len(leadup) > 0):
-                    func.get_leadup(leadup)
+                    func.get_leadup(leadup, station[2])
+                    func.get_normals(station[2], start_date, end_date)
                     num_found +=1
                 else:    
                     print("Could not find weather data for: ", tornado_event[0], tornado_event[1], tornado_event[3])
                     num_missing+=1
+            
 
 #prints to the console to finalize yearly information being printed to the console
 #like the other prints, useful for development, but would be better as a log
